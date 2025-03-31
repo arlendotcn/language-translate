@@ -112,9 +112,11 @@ program.description('Translate a single js/ts/json file')
                   incrementalMode,
                   translateRuntimeDelay: config.translateRuntimeDelay,
                   translateRuntimeChunkSize: config.translateRuntimeChunkSize,
-                  ignoreValuesAndCopyToTarget: config.ignoreValuesAndCopyToTarget,
+                  excludeFilesByIncludes: config.excludeFilesByIncludes || config.ignoreValuesAndCopyToTarget,
+                  excludeKeysByContentIncludes: config.excludeKeysByContentIncludes,
                   translateRuntimeMergeEnabled: config.translateRuntimeMergeEnabled,
-                  mergeEnabledChunkValuesLength: config.mergeEnabledChunkValuesLength
+                  mergeEnabledChunkValuesLength: config.mergeEnabledChunkValuesLength,
+                  reservedKeywords: config.reservedKeywords
                 })
               })
             })
@@ -134,9 +136,11 @@ program.description('Translate a single js/ts/json file')
               incrementalMode,
               translateRuntimeDelay: config.translateRuntimeDelay,
               translateRuntimeChunkSize: config.translateRuntimeChunkSize,
-              ignoreValuesAndCopyToTarget: config.ignoreValuesAndCopyToTarget,
+              excludeFilesByIncludes: config.excludeFilesByIncludes || config.ignoreValuesAndCopyToTarget,
+              excludeKeysByContentIncludes:config.excludeKeysByContentIncludes,
               translateRuntimeMergeEnabled: config.translateRuntimeMergeEnabled,
-              mergeEnabledChunkValuesLength: config.mergeEnabledChunkValuesLength
+              mergeEnabledChunkValuesLength: config.mergeEnabledChunkValuesLength,
+              reservedKeywords: config.reservedKeywords
             })
           })
         })

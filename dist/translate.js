@@ -5,7 +5,7 @@ import { getTranslator } from './translators.js';
 import fs from 'fs';
 import path from 'path';
 import prettier from 'prettier';
-export const translate = async ({ input, output, fromLang, targetLang, toolsLang = 'zh-CN', proxy, apiKeyConfig, incrementalMode, translateRuntimeDelay = 0, translateRuntimeChunkSize = 5, translateRuntimeMergeEnabled = true, mergeEnabledChunkValuesLength = 5000, ignoreValuesAndCopyToTarget = [] }) => {
+export const translate = async ({ input, output, fromLang, targetLang, toolsLang = 'zh-CN', proxy, apiKeyConfig, incrementalMode, translateRuntimeDelay = 0, translateRuntimeChunkSize = 5, translateRuntimeMergeEnabled = true, mergeEnabledChunkValuesLength = 5000, ignoreValuesAndCopyToTarget = [], excludeFilesByIncludes = [], reservedKeywords = [/\{\{.+?}}/], excludeKeysByContentIncludes = [/\{\{.+?}}/] }) => {
     if (!isFilePath(input)) {
         return;
     }
@@ -49,39 +49,87 @@ export const translate = async ({ input, output, fromLang, targetLang, toolsLang
     }
     // ------readSourceJson end-------
     const translateRun = async (jsonObj, isMergeEnable = false) => {
-        const resJsonObj = {};
+        const resJsonObj = {}, splitter = '\n[_]\n';
         for (const key in jsonObj) {
-            const text = jsonObj[key];
+            let text = jsonObj[key], a = text.split(splitter), ae = { length: 0 };
             if (typeof text === 'string') {
-                let resText = '';
-                const ignore = ignoreValuesAndCopyToTarget.includes(text);
+                let resText = '', parsed = false;
+                // 原版发现包含给定字符串就直接跳过 文件
+                const ignore = excludeFilesByIncludes.findIndex(v => {
+                    if (!v)
+                        return;
+                    if (v === text)
+                        return true;
+                    if (v instanceof RegExp)
+                        return v.test(text);
+                    if (v instanceof Function)
+                        return v(text);
+                }) > -1;
                 if (ignore) {
                     resText = text;
                 }
-                else if (/\{\{.+?\}\}/.test(text)) {
-                    const texts = text.split(/\{\{.+?\}\}/g);
-                    const slots = [];
-                    text.replace(/\{\{.+?\}\}/g, (v) => {
-                        slots.push(v);
-                        return '';
-                    });
-                    for (let i = 0; i < texts.length; i++) {
-                        const text = texts[i];
-                        if (text.length > 0) {
-                            const resFragment = await translator(text);
-                            texts[i] = resFragment;
+                else {
+                    for (let kw of reservedKeywords) {
+                        if (!kw)
+                            continue;
+                        if (kw instanceof RegExp && !kw.test(text))
+                            continue;
+                        if (typeof kw === 'string' && !text.includes(kw))
+                            continue;
+                        const texts = text.split(kw);
+                        const slots = [];
+                        text.replace(kw, (v) => {
+                            slots.push(v);
+                            return '';
+                        });
+                        for (let i = 0; i < texts.length; i++) {
+                            const text = texts[i];
+                            if (text.length > 0) {
+                                texts[i] = await translator(text);
+                            }
                         }
+                        for (let j = 0; j < texts.length; j++) {
+                            const str = texts[j];
+                            resText += str;
+                            if (j < texts.length - 1) {
+                                resText += '\n' + slots[j]; // 原版Bug：忘记换行，造成翻译后的片段数不一致
+                            }
+                        }
+                        parsed = true;
                     }
-                    for (let j = 0; j < texts.length; j++) {
-                        const str = texts[j];
-                        resText += str;
-                        if (j < texts.length - 1) {
-                            resText += slots[j];
+                    // 添加跳过 字段内容 包含特定字符串或匹配正则或者函数的 字段
+                    const splitter = '\n[_]\n';
+                    if (excludeKeysByContentIncludes && excludeKeysByContentIncludes.length) {
+                        for (let i = 0, j = a.length; i < j; i++) {
+                            const v = a[i];
+                            if (!v)
+                                continue;
+                            if (excludeKeysByContentIncludes.findIndex(x => {
+                                if (!x)
+                                    return;
+                                if (x === v)
+                                    return true;
+                                if (x instanceof RegExp)
+                                    return x.test(v);
+                                if (x instanceof Function)
+                                    return x(v);
+                            }) > -1) {
+                                ae[i] = v;
+                                ae.length++;
+                                a[i] = '-';
+                            }
                         }
+                        if (ae.length > 0)
+                            text = a.join(splitter);
                     }
                 }
-                else {
+                if (!ignore && !parsed)
                     resText = await translator(text);
+                if (ae.length > 0) {
+                    delete ae.length;
+                    a = resText.split(splitter);
+                    Object.keys(ae).forEach(key => a[key] = ae[key]);
+                    resText = a.join(splitter);
                 }
                 if (translateRuntimeDelay > 0 && !ignore) {
                     consoleLog(`delay ${translateRuntimeDelay}ms`);
@@ -214,7 +262,7 @@ export const translate = async ({ input, output, fromLang, targetLang, toolsLang
                 return;
             }
             chunk[0].forEach((key, idx) => {
-                const ignore = ignoreValuesAndCopyToTarget.includes(chunk[1][idx]);
+                const ignore = excludeFilesByIncludes.includes(chunk[1][idx]);
                 if (ignore) {
                     outValues[idx] = chunk[1][idx];
                 }
