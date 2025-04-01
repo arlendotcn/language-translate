@@ -49,39 +49,45 @@ export const translate = async ({ input, output, fromLang, targetLang, toolsLang
     }
     // ------readSourceJson end-------
     const translateRun = async (jsonObj, isMergeEnable = false) => {
-        const resJsonObj = {}, splitter = '\n[_]\n';
+        const resJsonObj = {};
+        const splitter = '\n[_]\n';
         for (const key in jsonObj) {
-            let text = jsonObj[key], a = text.split(splitter), oSkipped = { length: 0 }, oReserved = { length: 0 };
+            let text = jsonObj[key];
+            let a = text.split(splitter);
+            const oSkipped = { length: 0 };
+            const oReserved = { length: 0 };
             let resText = '';
             const ignore = excludeFilesByIncludes.findIndex(v => {
-                if (!v)
-                    return;
+                if (v === '' || v === null)
+                    return false;
                 if (v === text)
                     return true;
                 if (v instanceof RegExp)
                     return v.test(text);
                 if (v instanceof Function)
                     return v(text);
+                return false;
             }) > -1;
             if (ignore) {
                 resText = text;
             }
             else {
                 // 添加跳过 字段内容 包含特定字符串或匹配正则或者函数的 字段
-                if (excludeKeysByContentIncludes && excludeKeysByContentIncludes.length) {
+                if (excludeKeysByContentIncludes !== undefined && (excludeKeysByContentIncludes.length > 0)) {
                     for (let i = 0, j = a.length; i < j; i++) {
                         const v = a[i];
-                        if (!v)
+                        if (v === '')
                             continue;
                         if (excludeKeysByContentIncludes.findIndex(x => {
-                            if (!x)
-                                return;
+                            if (v === '' || v === null)
+                                return false;
                             if (x === v)
                                 return true;
                             if (x instanceof RegExp)
                                 return x.test(v);
                             if (x instanceof Function)
                                 return x(v);
+                            return false;
                         }) > -1) {
                             oSkipped[i] = v;
                             oSkipped.length++;
@@ -92,19 +98,21 @@ export const translate = async ({ input, output, fromLang, targetLang, toolsLang
                         text = a.join(splitter);
                 }
                 // 查找并标记保留字
-                if (reservedKeywords && reservedKeywords.length) {
+                if (reservedKeywords !== undefined && (reservedKeywords.length > 0)) {
                     for (let i = 0, j = a.length; i < j; i++) {
-                        const v = a[i], changes = {};
+                        const v = a[i];
+                        const changes = {};
                         let n = 0;
-                        if (!v)
+                        if (v === '' || v === null)
                             continue;
                         reservedKeywords.forEach(x => {
-                            if (!x || x instanceof RegExp ? !x.test(v) : !v.includes(x))
+                            if (x instanceof RegExp ? !x.test(v) : x !== '' && !v.includes(x))
                                 return;
-                            let key = '', value = [];
+                            let key = '';
+                            const value = [];
                             a[i] = v.replace(x, vv => {
-                                if (!key)
-                                    key = `AR000${i}${n++}AR111`;
+                                if (key === '')
+                                    key = `AR000${i}X${n++}AR111`;
                                 value.push(vv);
                                 changes[key] = value;
                                 return key;
@@ -125,7 +133,7 @@ export const translate = async ({ input, output, fromLang, targetLang, toolsLang
             if (oSkipped.length > 0) {
                 delete oSkipped.length;
                 a = resText.split(splitter);
-                Object.keys(oSkipped).forEach(key => a[parseInt(key)] = oSkipped[key]);
+                Object.keys(oSkipped).forEach(key => { a[parseInt(key)] = oSkipped[key]; });
                 resText = a.join(splitter);
             }
             // 还原 保留关键字
@@ -133,7 +141,7 @@ export const translate = async ({ input, output, fromLang, targetLang, toolsLang
                 delete oReserved.length;
                 Object.keys(oReserved).forEach(n => {
                     Object.keys(oReserved[n]).forEach(k => {
-                        for (let v of oReserved[n][k])
+                        for (const v of oReserved[n][k])
                             resText = resText.replace(k, v);
                     });
                 });

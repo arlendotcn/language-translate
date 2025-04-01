@@ -46,10 +46,10 @@ export const translate = async ({
   translateRuntimeChunkSize?: number
   translateRuntimeMergeEnabled?: boolean
   mergeEnabledChunkValuesLength?: number
-    ignoreValuesAndCopyToTarget?: Array<string | RegExp | ((s: string) => boolean)>
-    excludeFilesByIncludes?: Array<string | RegExp | ((s: string) => boolean)>
-    excludeKeysByContentIncludes?: Array<string | RegExp | ((s: string) => boolean)>
-    reservedKeywords?: Array<string | RegExp>
+  ignoreValuesAndCopyToTarget?: Array<string | RegExp | ((s: string) => boolean)>
+  excludeFilesByIncludes?: Array<string | RegExp | ((s: string) => boolean)>
+  excludeKeysByContentIncludes?: Array<string | RegExp | ((s: string) => boolean)>
+  reservedKeywords?: Array<string | RegExp>
 }): Promise<undefined> => {
   if (!isFilePath(input)) {
     return
@@ -100,86 +100,88 @@ export const translate = async ({
   }
   // ------readSourceJson end-------
   const translateRun = async (jsonObj: Record<string, any>, isMergeEnable = false): Promise<Record<string, any>> => {
-        const resJsonObj: Record<string, any> = {}, splitter = '\n[_]\n'
+    const resJsonObj: Record<string, any> = {}; const splitter = '\n[_]\n'
     for (const key in jsonObj) {
-            let text:string = jsonObj[key], a = text.split(splitter),
-                oSkipped: { [key: string]: string | number } = {length: 0},
-                oReserved: { [key: string]: any } = {length: 0}
-        let resText = ''
-            const ignore = excludeFilesByIncludes.findIndex(v => {
-                if (!v) return
-                if (v === text) return true
-                if (v instanceof RegExp) return v.test(text)
-                if (v instanceof Function) return v(text)
-            }) > -1
-        if (ignore) {
-          resText = text
-            } else {
-                // 添加跳过 字段内容 包含特定字符串或匹配正则或者函数的 字段
-                if (excludeKeysByContentIncludes && excludeKeysByContentIncludes.length) {
-                    for (let i = 0, j = a.length; i < j; i++) {
-                        const v = a[i]
-                        if (!v) continue
-                        if (excludeKeysByContentIncludes.findIndex(x => {
-                            if (!x) return
-                            if (x === v) return true;
-                            if (x instanceof RegExp) return x.test(v)
-                            if (x instanceof Function) return x(v)
-                        }) > -1) {
-                            oSkipped[i] = v;
-                            (oSkipped.length as number)++
-                            a[i] = '-'
-                        }
-                    }
-                    if (oSkipped.length as number > 0) text = a.join(splitter)
-                }
-                // 查找并标记保留字
-                if (reservedKeywords && reservedKeywords.length) {
-                    for (let i = 0, j = a.length; i < j; i++) {
-                        const v: string = a[i], changes:{[key:string]:string[]} = {}
-                        let n = 0
-                        if (!v) continue
-                        reservedKeywords.forEach(x => {
-                            if(!x || x instanceof RegExp ? !(x as RegExp).test(v) : !v.includes(x as string)) return
-                            let key = '', value :string[] = []
-                            a[i] = v.replace(x, vv => {
-                                if(!key) key = `AR000${i}${n++}AR111`
-                                value.push(vv)
-                                changes[key] = value
-                                return key
-                            })
-                        })
-                        if(n > 0) {
-                            oReserved[i] = changes
-                            oReserved.length++
-                        }
-                    }
-                    if (oReserved.length > 0) text = a.join(splitter)
-                }
-        }
-            if (!ignore) resText = await translator(text)
-            // 还原 被跳过的原始语句
-            if (oSkipped.length as number > 0) {
-                delete oSkipped.length
-                a = resText.split(splitter)
-                Object.keys(oSkipped).forEach(key => a[parseInt(key)] = oSkipped[key] as string)
-                resText = a.join(splitter)
+      let text: string = jsonObj[key]; let a = text.split(splitter)
+      const oSkipped: Record<string, string | number> = { length: 0 }
+      const oReserved: Record<string, any> = { length: 0 }
+      let resText = ''
+      const ignore = excludeFilesByIncludes.findIndex(v => {
+        if (v === '' || v === null) return false
+        if (v === text) return true
+        if (v instanceof RegExp) return v.test(text)
+        if (v instanceof Function) return v(text)
+        return false
+      }) > -1
+      if (ignore) {
+        resText = text
+      } else {
+        // 添加跳过 字段内容 包含特定字符串或匹配正则或者函数的 字段
+        if (excludeKeysByContentIncludes !== undefined && (excludeKeysByContentIncludes.length > 0)) {
+          for (let i = 0, j = a.length; i < j; i++) {
+            const v = a[i]
+            if (v === '') continue
+            if (excludeKeysByContentIncludes.findIndex(x => {
+              if (v === '' || v === null) return false
+              if (x === v) return true
+              if (x instanceof RegExp) return x.test(v)
+              if (x instanceof Function) return x(v)
+              return false
+            }) > -1) {
+              oSkipped[i] = v;
+              (oSkipped.length as number)++
+              a[i] = '-'
             }
-            // 还原 保留关键字
-            if(oReserved.length > 0) {
-                delete oReserved.length
-                Object.keys(oReserved).forEach(n => {
-                    Object.keys(oReserved[n]).forEach(k => {
-                        for(let v of oReserved[n][k]) resText = resText.replace(k, v)
-                    })
-                })
-            }
-        if (translateRuntimeDelay > 0 && !ignore) {
-          consoleLog(`delay ${translateRuntimeDelay}ms`)
-          await new Promise((resolve) => setTimeout(resolve, translateRuntimeDelay))
+          }
+          if (oSkipped.length as number > 0) text = a.join(splitter)
         }
-        isMergeEnable || consoleSuccess(`${fromLang}: ${text} --${ignore ? '(with ignore copy)-' : ''}-> ${targetLang}: ${resText}`)
-        resJsonObj[key] = resText
+        // 查找并标记保留字
+        if (reservedKeywords !== undefined && (reservedKeywords.length > 0)) {
+          for (let i = 0, j = a.length; i < j; i++) {
+            const v: string = a[i]; const changes: Record<string, string[]> = {}
+            let n = 0
+            if (v === '' || v === null) continue
+            reservedKeywords.forEach(x => {
+              if (x instanceof RegExp ? !x.test(v) : x !== '' && !v.includes(x)) return
+              let key = ''; const value: string[] = []
+              a[i] = v.replace(x, vv => {
+                if (key === '') key = `AR000${i}X${n++}AR111`
+                value.push(vv)
+                changes[key] = value
+                return key
+              })
+            })
+            if (n > 0) {
+              oReserved[i] = changes
+              oReserved.length++
+            }
+          }
+          if (oReserved.length > 0) text = a.join(splitter)
+        }
+      }
+      if (!ignore) resText = await translator(text)
+      // 还原 被跳过的原始语句
+      if (oSkipped.length as number > 0) {
+        delete oSkipped.length
+        a = resText.split(splitter)
+        Object.keys(oSkipped).forEach(key => { a[parseInt(key)] = oSkipped[key] as string })
+        resText = a.join(splitter)
+      }
+      // 还原 保留关键字
+      if (oReserved.length > 0) {
+        delete oReserved.length
+        Object.keys(oReserved).forEach(n => {
+          Object.keys(oReserved[n]).forEach(k => {
+            for (const v of oReserved[n][k]) resText = resText.replace(k, v)
+          })
+        })
+      }
+      if (translateRuntimeDelay > 0 && !ignore) {
+        consoleLog(`delay ${translateRuntimeDelay}ms`)
+        await new Promise((resolve) => setTimeout(resolve, translateRuntimeDelay))
+      }
+      isMergeEnable || consoleSuccess(`${fromLang}: ${text} --${ignore ? '(with ignore copy)-' : ''}-> ${targetLang}: ${resText}`)
+      resJsonObj[key] = resText
     }
     return resJsonObj
   }
@@ -312,7 +314,7 @@ export const translate = async ({
         return
       }
       chunk[0].forEach((key, idx) => {
-                const ignore = excludeFilesByIncludes.includes(chunk[1][idx])
+        const ignore = excludeFilesByIncludes.includes(chunk[1][idx])
         if (ignore) {
           outValues[idx] = chunk[1][idx]
         }
