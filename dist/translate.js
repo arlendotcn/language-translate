@@ -112,7 +112,7 @@ export const translate = async ({ input, output, fromLang, targetLang, toolsLang
                             const value = [];
                             a[i] = v.replace(x, vv => {
                                 if (key === '')
-                                    key = `AR000${i}X${n++}AR111`;
+                                    key = `AR0Z${i}AR1Z${n++}AR2Z`;
                                 value.push(vv);
                                 changes[key] = value;
                                 return key;

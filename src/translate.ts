@@ -145,7 +145,7 @@ export const translate = async ({
               if (x instanceof RegExp ? !x.test(v) : x !== '' && !v.includes(x)) return
               let key = ''; const value: string[] = []
               a[i] = v.replace(x, vv => {
-                if (key === '') key = `AR000${i}X${n++}AR111`
+                if (key === '') key = `AR0Z${i}AR1Z${n++}AR2Z`
                 value.push(vv)
                 changes[key] = value
                 return key
