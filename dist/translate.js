@@ -317,7 +317,8 @@ export const translate = async ({ input, output, fromLang, targetLang, toolsLang
     consoleLog(outTipMsg);
 };
 function genKey(s) {
-    return `_[${s.toUpperCase().split('').join('_')}]_`;
+    // return `[${s.toUpperCase().split('').join('_')}]`
+    return '[____]';
 }
 function stringify(s) {
     return JSON.stringify(s, function (k, v) {
