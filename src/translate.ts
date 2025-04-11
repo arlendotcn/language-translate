@@ -16,6 +16,9 @@ import { getTranslator } from './translators.js'
 import fs from 'fs'
 import path from 'path'
 import prettier from 'prettier'
+
+const arSplitter = genKey('splitter')
+
 export const translate = async ({
   input,
   output,
@@ -64,7 +67,7 @@ export const translate = async ({
 
   let inputStartStr = ''
   // ------readSourceJson start-------
-  let sourceText
+  let sourceText: string
   try {
     sourceText = fs.readFileSync(input, 'utf8')
     if (sourceText.includes('export') && !input.endsWith('.json')) {
@@ -98,11 +101,17 @@ export const translate = async ({
     consoleError(ls[toolsLang].sourceNull)
     return
   }
+  JSON.stringify(sourceJson, function (k, v) {
+    if (Array.isArray(v)) this[k] = v.join(arSplitter)
+    return v
+  })
   // ------readSourceJson end-------
   const translateRun = async (jsonObj: Record<string, any>, isMergeEnable = false): Promise<Record<string, any>> => {
-    const resJsonObj: Record<string, any> = {}; const splitter = '\n[_]\n'
+    const resJsonObj: Record<string, any> = {}
+    const splitter = '\n[_]\n'
     for (const key in jsonObj) {
-      let text: string = jsonObj[key]; let a = text.split(splitter)
+      let text: string = jsonObj[key]
+      let a = text.split(splitter)
       const oSkipped: Record<string, string | number> = { length: 0 }
       const oReserved: Record<string, any> = { length: 0 }
       let resText = ''
@@ -138,14 +147,16 @@ export const translate = async ({
         // 查找并标记保留字
         if (reservedKeywords !== undefined && (reservedKeywords.length > 0)) {
           for (let i = 0, j = a.length; i < j; i++) {
-            const v: string = a[i]; const changes: Record<string, string[]> = {}
+            const v: string = a[i]
+            const changes: Record<string, string[]> = {}
             let n = 0
             if (v === '' || v === null) continue
             reservedKeywords.forEach(x => {
               if (x instanceof RegExp ? !x.test(v) : x !== '' && !v.includes(x)) return
-              let key = ''; const value: string[] = []
+              let key = ''
+              const value: string[] = []
               a[i] = v.replace(x, vv => {
-                if (key === '') key = `AR0Z${i}AR1Z${n++}AR2Z`
+                if (key === '') key = `A0R0Z${i}A0R1Z${n++}A0R2Z`
                 value.push(vv)
                 changes[key] = value
                 return key
@@ -164,7 +175,9 @@ export const translate = async ({
       if (oSkipped.length as number > 0) {
         delete oSkipped.length
         a = resText.split(splitter)
-        Object.keys(oSkipped).forEach(key => { a[parseInt(key)] = oSkipped[key] as string })
+        Object.keys(oSkipped).forEach(key => {
+          a[parseInt(key)] = oSkipped[key] as string
+        })
         resText = a.join(splitter)
       }
       // 还原 保留关键字
@@ -251,14 +264,14 @@ export const translate = async ({
       outPutBuffer += `${item}`
     })
     if (outFile != null) {
-      outPutBuffer += JSON.stringify(mergeJson(outTextJson, resJson)).slice(1)
+      outPutBuffer += stringify(mergeJson(outTextJson, resJson)).slice(1)
       outPutBuffer = await prettier.format(outPutBuffer, { parser: output.endsWith('.json') ? 'json' : 'typescript' })
       fs.writeFileSync(output, outPutBuffer)
       if (outTipMsg.length === 0) {
         outTipMsg = `${ls[toolsLang].patchSuccess} --> ${output}`
       }
     } else {
-      outPutBuffer += JSON.stringify(resJson).slice(1)
+      outPutBuffer += stringify(resJson).slice(1)
       outPutBuffer = await prettier.format(outPutBuffer, { parser: output.endsWith('.json') ? 'json' : 'typescript' })
       const outDirname = path.dirname(output)
       fs.existsSync(outDirname) || fs.mkdirSync(outDirname, { recursive: true })
@@ -347,4 +360,15 @@ export const translate = async ({
   }
 
   consoleLog(outTipMsg)
+}
+
+function genKey (s: string) {
+  return `_[${s.toUpperCase().split('').join('_')}]_`
+}
+
+function stringify (s: any) {
+  return JSON.stringify(s, function (k, v) {
+    if (typeof v === 'string' && v.includes(arSplitter)) return v.split(arSplitter)
+    return v
+  })
 }

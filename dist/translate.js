@@ -5,6 +5,7 @@ import { getTranslator } from './translators.js';
 import fs from 'fs';
 import path from 'path';
 import prettier from 'prettier';
+const arSplitter = genKey('splitter');
 export const translate = async ({ input, output, fromLang, targetLang, toolsLang = 'zh-CN', proxy, apiKeyConfig, incrementalMode, translateRuntimeDelay = 0, translateRuntimeChunkSize = 5, translateRuntimeMergeEnabled = true, mergeEnabledChunkValuesLength = 5000, ignoreValuesAndCopyToTarget = [], excludeFilesByIncludes = [], reservedKeywords = [/\{\{.+?}}/], excludeKeysByContentIncludes = [/\{\{.+?}}/] }) => {
     if (!isFilePath(input)) {
         return;
@@ -47,6 +48,11 @@ export const translate = async ({ input, output, fromLang, targetLang, toolsLang
         consoleError(ls[toolsLang].sourceNull);
         return;
     }
+    JSON.stringify(sourceJson, function (k, v) {
+        if (Array.isArray(v))
+            this[k] = v.join(arSplitter);
+        return v;
+    });
     // ------readSourceJson end-------
     const translateRun = async (jsonObj, isMergeEnable = false) => {
         const resJsonObj = {};
@@ -112,7 +118,7 @@ export const translate = async ({ input, output, fromLang, targetLang, toolsLang
                             const value = [];
                             a[i] = v.replace(x, vv => {
                                 if (key === '')
-                                    key = `AR0Z${i}AR1Z${n++}AR2Z`;
+                                    key = `A0R0Z${i}A0R1Z${n++}A0R2Z`;
                                 value.push(vv);
                                 changes[key] = value;
                                 return key;
@@ -133,7 +139,9 @@ export const translate = async ({ input, output, fromLang, targetLang, toolsLang
             if (oSkipped.length > 0) {
                 delete oSkipped.length;
                 a = resText.split(splitter);
-                Object.keys(oSkipped).forEach(key => { a[parseInt(key)] = oSkipped[key]; });
+                Object.keys(oSkipped).forEach(key => {
+                    a[parseInt(key)] = oSkipped[key];
+                });
                 resText = a.join(splitter);
             }
             // 还原 保留关键字
@@ -215,7 +223,7 @@ export const translate = async ({ input, output, fromLang, targetLang, toolsLang
             outPutBuffer += `${item}`;
         });
         if (outFile != null) {
-            outPutBuffer += JSON.stringify(mergeJson(outTextJson, resJson)).slice(1);
+            outPutBuffer += stringify(mergeJson(outTextJson, resJson)).slice(1);
             outPutBuffer = await prettier.format(outPutBuffer, { parser: output.endsWith('.json') ? 'json' : 'typescript' });
             fs.writeFileSync(output, outPutBuffer);
             if (outTipMsg.length === 0) {
@@ -223,7 +231,7 @@ export const translate = async ({ input, output, fromLang, targetLang, toolsLang
             }
         }
         else {
-            outPutBuffer += JSON.stringify(resJson).slice(1);
+            outPutBuffer += stringify(resJson).slice(1);
             outPutBuffer = await prettier.format(outPutBuffer, { parser: output.endsWith('.json') ? 'json' : 'typescript' });
             const outDirname = path.dirname(output);
             fs.existsSync(outDirname) || fs.mkdirSync(outDirname, { recursive: true });
@@ -308,3 +316,13 @@ export const translate = async ({ input, output, fromLang, targetLang, toolsLang
     }
     consoleLog(outTipMsg);
 };
+function genKey(s) {
+    return `_[${s.toUpperCase().split('').join('_')}]_`;
+}
+function stringify(s) {
+    return JSON.stringify(s, function (k, v) {
+        if (typeof v === 'string' && v.includes(arSplitter))
+            return v.split(arSplitter);
+        return v;
+    });
+}
